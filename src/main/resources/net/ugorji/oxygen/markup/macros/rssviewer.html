@@ -1,0 +1,9 @@
+
+<h3>${rss_id_string} <a href="${rss.link}">${rss.title}</a> (${(rss.publishedDate?datetime)?default("")})</h3>
+${(rss.description?html)?default("")}
+<ul>
+<#list rss.getEntries() as entry>
+  <li><a href="${entry.link}">${entry.title}</a></li>
+  <#if (entry_index >= (maxsize - 1)) ><#break></#if>
+</#list>
+</ul>

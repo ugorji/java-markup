@@ -1,0 +1,665 @@
+options {
+  STATIC = false;
+  // LOOKAHEAD = 1;
+  // DEBUG_PARSER = true;
+  // DEBUG_TOKEN_MANAGER = true;
+  // DEBUG_LOOKAHEAD = true;
+  // FORCE_LA_CHECK = true;
+  // OTHER_AMBIGUITY_CHECK = 2;
+} 
+
+PARSER_BEGIN(MarkupParser1)
+  package net.ugorji.oxygen.markup.parser;
+
+  import net.ugorji.oxygen.markup.MarkupUtils;
+  import net.ugorji.oxygen.markup.MarkupLink;
+  import net.ugorji.oxygen.markup.MarkupParser;
+  import net.ugorji.oxygen.markup.MarkupParserBase;
+  
+  public class MarkupParser1 implements MarkupParser {
+    private MarkupParserBase mbase; 
+    
+    //public MarkupParser1(java.io.Reader _r) throws Exception {
+    //  //this(new AddNewLineReader(_r));
+    //  this(_r);
+    //  token_source.SwitchTo(AT_START_OF_LINE);
+    //}
+    
+    public void setMarkupParserBase(MarkupParserBase _mbase) throws Exception { 
+      mbase = _mbase;
+    }
+    
+    public MarkupParserBase getMarkupParserBase() throws Exception { 
+      return mbase;
+    }
+    
+    public MarkupParser newMarkupParser(java.io.Reader _r) throws Exception {
+      return new MarkupParser1(_r);
+    }
+    	
+  }
+
+PARSER_END(MarkupParser1) 
+
+<DEFAULT, AT_START_OF_LINE, IN_TABLE_STATE, IN_DL_STATE> TOKEN :
+{
+  < LT: "<" > : DEFAULT
+| < GT: ">" > : DEFAULT
+| < VARIABLE: "$" "{" (~[" ","\t","\r","\n","}"])* "}" > : DEFAULT
+| < HR: ("-"){4}("-")* > : DEFAULT
+| < QUOTE: "\"\"\"" > : DEFAULT
+| < BOLD: "'''" | "**" > : DEFAULT
+| < ITALICS: "''" | "~~" > : DEFAULT
+| < MONOSPACE_START: "{{" > : DEFAULT
+| < MONOSPACE_END: "}}" > : DEFAULT
+| < UNDERLINE: "__" > : DEFAULT
+| < STRIKETHROUGH: "---" > : DEFAULT
+| < SUPERSCRIPT: "^^" > : DEFAULT
+| < SUBSCRIPT: ",," > : DEFAULT
+| < AS_IS_2: <AS_IS_ALTERNATE_BOUNDARY> <AS_IS_ALTERNATE_TEXT> <AS_IS_ALTERNATE_BOUNDARY> > : DEFAULT
+| < AS_IS_3: <AS_IS_3_START> <AS_IS_3_TEXT> <AS_IS_3_END> > : DEFAULT
+| < ESCAPED_TOKEN: "`" ~["`"," ","\t","\r","\n"] (~[" ","\t","\r","\n"])* > : DEFAULT
+| < PRE: <PRE_START> <PRE_TEXT> <PRE_END> > : DEFAULT
+| < LINK: <LINK_START> <LINK_TEXT> <LINK_END> > : DEFAULT
+| < PARAGRAPH: <EOL_DOUBLE_SEQ> > : AT_START_OF_LINE
+| < EOL: <EOL_SEQ> > : AT_START_OF_LINE
+| < URL_TEXT: <URL> > : DEFAULT
+| < EMAIL_ADDRESS_TEXT: <EMAIL_ADDRESS> > : DEFAULT
+| < EMOTICON_TEXT: <EMOTICON> > : DEFAULT
+| < SLASH_SEPARATED_JOINED_WORD_TEXT: (["/","\\"])? <SEPARATED_JOINED_WORD_TEXT_SNIPPET>  (["/","\\"] <SEPARATED_JOINED_WORD_TEXT_SNIPPET>)+ > : DEFAULT
+| < SEPARATED_JOINED_WORD_TEXT: <SEPARATED_JOINED_WORD_TEXT_SNIPPET> > : DEFAULT
+| < BR: "\\\\" > : DEFAULT
+| < MACRO_NOCONTENT: "{" <ALPHABET> (<WORD_CHAR>)* (":")? ("/"~["}"] | ~["}"])* "/}" > : DEFAULT
+| < MACRO_WITHCONTENT_OPEN: "{" <ALPHABET> (<WORD_CHAR>)* (":")? ("/"~["}"] | ~["}"])* "}" > : IN__MACRO
+| < PLAIN_TEXT: ~[] > : DEFAULT
+| < LINE_CONTINUATION: <SPACE> "\\" <EOL_SEQ> > : DEFAULT
+}
+
+<IN__MACRO> TOKEN:
+{
+  < MACRO_WITHCONTENT_CLOSE: "{/" <ALPHABET> (<WORD_CHAR>)* "}" >
+| < MACRO_PLAIN_TEXT: ~[] > 
+}
+
+<AT_START_OF_LINE> TOKEN: 
+{
+  < UL: <OPTIONAL_SPACES> "*" <SPACE> > : DEFAULT
+| < OL: <OPTIONAL_SPACES> "#" <SPACE> > : DEFAULT
+| < COMMENT: "##" (~["\n","\r"])* > : DEFAULT
+| < HEADER_START: <OPTIONAL_SPACES> ("="){1,6} <SPACE> > : DEFAULT
+| < TABLE_ROW_START: <OPTIONAL_SPACES> <OPTIONAL_DASH> (<TABLE_SEP>)+ <OPTIONAL_DASH> > : IN_TABLE_STATE
+| < DL_START: <OPTIONAL_SPACES> <DL_SEP> <SPACE> > : IN_DL_STATE
+}
+
+<IN_TABLE_STATE, DEFAULT> TOKEN :
+{
+  < TABLE_CELL: <OPTIONAL_SPACES> <OPTIONAL_DASH> (<TABLE_SEP>)+ <OPTIONAL_DASH> > 
+}
+
+<IN_DL_STATE, DEFAULT> TOKEN :
+{
+  < DD_START: <OPTIONAL_SPACES> <DL_SEP> <SPACE> > : DEFAULT
+}
+
+<*> TOKEN:
+{
+  < #PRE_TEXT: (~["}"] | "}"~["}"] | "}}"~["}"] )+ >
+| < #PRE_START: "{{{" >
+| < #PRE_END: "}}}" >
+| < #AS_IS_ALTERNATE_BOUNDARY: "``" >
+| < #AS_IS_ALTERNATE_TEXT: (~["`"] | "`"~["`"])+ >
+| < #AS_IS_3_TEXT: (~[")"] | ")"~[")"] )+ >
+| < #AS_IS_3_START: "((" >
+| < #AS_IS_3_END: "))" >
+| < #LINK_TEXT: (~["]","\n","\r"])+ >
+| < #OPTIONAL_DASH: ("-")? >
+| < #SPACE: " " | "\t" >
+| < #SPACES: (<SPACE>)+ >
+| < #OPTIONAL_SPACES: (<SPACE>)* >
+| < #DL_SEP: "::" >
+| < #TABLE_SEP: ("||")+ >
+| < #LINK_START: "[" >
+| < #LINK_END: "]" >
+| < #DIGIT: ["0"-"9"] >
+| < #ALPHABET: ["a"-"z","A"-"Z"] >
+| < #WORD_CHAR: ["a"-"z","A"-"Z","_","0"-"9"] >
+| < #EMAIL_ADDRESS: (<WORD_CHAR> | ["-","."])+ "@" (<WORD_CHAR> | ["-","."])+ >
+| < #URL_CHAR_AFTER_COLON: (<WORD_CHAR> | ["-",":",".",";","?","@","&","+","=","%","/",".",","]) >
+| < #URL: ("`")? (<WORD_CHAR>)+ ":" (<WORD_CHAR> | "/") (<URL_CHAR_AFTER_COLON>)* >
+| < #EMOTICON: <OPTIONAL_SPACES> ":" (<WORD_CHAR>)+ ":" >
+| < #JOINED_WORD_SEPARATOR: (["-","."])+ >
+| < #WORD_TEXT_SNIPPET: (<WORD_CHAR>)+ > 
+| < #EOL_SEQ: "\r\n" | "\r" | "\n" > 
+| < #EOL_DOUBLE_SEQ: ("\r\n\r\n" | "\r\n\n" | "\n\r\n" | "\r\r" | "\n\n") > 
+//| < #EOL_DOUBLE_SEQ: <EOL_SEQ> <EOL_SEQ> > 
+//| < #EOL_SEQ: ("\r\n" | "\r" | "\n") > 
+//| < #EOL_DOUBLE_SEQ: <EOL_SEQ> <EOL_SEQ> > 
+//| < #EOL_DOUBLE_SEQ: ("\r\n\r\n" | "\r\r" | "\n\n") > 
+| < #SEPARATED_JOINED_WORD_TEXT_SNIPPET: (<JOINED_WORD_SEPARATOR>)* <WORD_TEXT_SNIPPET> (<JOINED_WORD_SEPARATOR> <WORD_TEXT_SNIPPET>)* > 
+}
+
+<*> TOKEN [IGNORE_CASE] :
+{
+  < #IMAGE_SUFFIX: ( ".jpg" | ".jpeg" | ".gif" | ".png" | ".bmp" ) >
+}
+
+void markupToHTML() throws Exception: {} {
+  {
+    token_source.SwitchTo(AT_START_OF_LINE);
+    mbase.pagestart();
+  }
+  p_jj_markupPageUnit()
+  <EOF>
+  { 
+    //explicitly flush
+    mbase.flush(); 
+  }
+}
+
+void p_jj_markupPageUnit() throws Exception: {} {
+  (p_jj_markupPageUnitBlockElement() )*
+}
+
+void p_jj_markupPageUnitBlockElement() throws Exception: {} {
+  p_jj_markupPageElement()
+  |
+  p_jj_quote()
+}
+
+void p_jj_markupPageElement() throws Exception: {} {
+  p_jj_one_or_two_eol()
+  |
+  p_jj_list() 
+  | 
+  p_jj_dl()
+  | 
+  p_jj_table()
+  | 
+  p_jj_header()
+  | 
+  p_jj_comment() 
+  | 
+  p_jj_markupPageElement_standalone()
+  | 
+  p_jj_markupPageElement_text()
+  { 
+    //flush(); 
+  }
+}
+
+void p_jj_markupPageElement_standalone() throws Exception: {} {
+  p_jj_asis()
+  | 
+  p_jj_pre()
+  | 
+  p_jj_macro()
+  | 
+  p_jj_horizontalrule()
+  | 
+  p_jj_link()
+  | 
+  p_jj_url()
+  | 
+  p_jj_emailaddress()
+  | 
+  p_jj_htmlescapeable()
+  | 
+  p_jj_br()
+}
+
+void p_jj_markupPageElement_text() throws Exception: {} {
+  p_jj_textformatting() 
+  | 
+  p_jj_non_textformatting()
+}
+
+void p_jj_non_textformatting() throws Exception: {} {
+  p_jj_escaped_word()
+  |
+  p_jj_slash_separated_word()
+  | 
+  p_jj_separated_word()
+  | 
+  p_jj_variable()
+  |
+  p_jj_emoticon()
+  |
+  p_jj_plaintext()
+  |
+  p_jj_linecontinuation()
+}
+
+void p_jj_textformatting() throws Exception: {} {
+  p_jj_bold() 
+  | 
+  p_jj_italics()
+  | 
+  p_jj_superscript()
+  | 
+  p_jj_subscript()
+  | 
+  p_jj_strikethrough()
+  | 
+  p_jj_underline()
+  | 
+  p_jj_monospace()
+} 
+
+void p_jj_quote() throws Exception: {} {
+  <QUOTE> { 
+    mbase.write("<blockquote style=\"display:" + ((mbase.showInlineReviews()) ? "block" : "none") + "\" >");
+    //flush();
+  }
+  ( p_jj_markupPageElement() )*
+  <QUOTE> { 
+    mbase.write("</blockquote>");
+    //flush();
+  }
+}
+
+void p_jj_bold() throws Exception: {} {
+  <BOLD> { 
+    mbase.write("<b>");
+    //flush();
+  }
+  ( p_jj_italics() | p_jj_superscript() | p_jj_subscript() | p_jj_strikethrough() | p_jj_underline() | p_jj_monospace()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <BOLD> { 
+    mbase.write("</b>");
+    //flush();
+  }
+}
+
+void p_jj_italics() throws Exception: {} {
+  <ITALICS> { 
+    mbase.write("<i>");
+    //flush();
+  }
+  ( p_jj_bold() | p_jj_superscript() | p_jj_subscript() | p_jj_strikethrough() | p_jj_underline() | p_jj_monospace()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <ITALICS> { 
+    mbase.write("</i>");
+    //flush();
+  }
+}
+
+void p_jj_superscript() throws Exception: {} {
+  <SUPERSCRIPT> { 
+    mbase.write("<super>");
+    //flush();
+  }
+  ( p_jj_italics() | p_jj_bold() | p_jj_subscript() | p_jj_strikethrough() | p_jj_underline() | p_jj_monospace()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <SUPERSCRIPT> { 
+    mbase.write("</super>");
+    //flush();
+  }
+}
+
+void p_jj_subscript() throws Exception: {} {
+  <SUBSCRIPT> { 
+    mbase.write("<sub>");
+    //flush();
+  }
+  ( p_jj_italics() | p_jj_superscript() | p_jj_bold() | p_jj_strikethrough() | p_jj_underline() | p_jj_monospace()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <SUBSCRIPT> { 
+    mbase.write("</sub>");
+    //flush();
+  }
+}
+
+void p_jj_strikethrough() throws Exception: {} {
+  <STRIKETHROUGH> { 
+    mbase.write("<strike>");
+    //flush();
+  }
+  ( p_jj_italics() | p_jj_superscript() | p_jj_subscript() | p_jj_bold() | p_jj_underline() | p_jj_monospace()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <STRIKETHROUGH> { 
+    mbase.write("</strike>");
+    //flush();
+  }
+}
+
+void p_jj_underline() throws Exception: {} {
+  <UNDERLINE> { 
+    mbase.write("<u>");
+    //flush();
+  }
+  ( p_jj_italics() | p_jj_superscript() | p_jj_subscript() | p_jj_strikethrough() | p_jj_bold() | p_jj_monospace()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <UNDERLINE> { 
+    mbase.write("</u>");
+    //flush();
+  }
+}
+
+void p_jj_monospace() throws Exception: {} {
+  <MONOSPACE_START> { 
+    mbase.write("<tt>");
+    //flush();
+  }
+  ( p_jj_italics() | p_jj_superscript() | p_jj_subscript() | p_jj_strikethrough() | p_jj_underline() | p_jj_bold()  | 
+    p_jj_markupPageElement_standalone() | p_jj_non_textformatting() | p_jj_eol() )*
+  <MONOSPACE_END> { 
+    mbase.write("</tt>");
+    //flush();
+  }
+}
+
+void p_jj_linecontinuation() throws Exception: {} {
+  <LINE_CONTINUATION> {
+    mbase.writeln();
+    //flush();
+  }
+}
+
+void p_jj_variable() throws Exception: {Token t;} {
+  t = <VARIABLE> { 
+    //System.out.println("VARIABLE: " + t.image);
+    mbase.variable(t.image.substring(2, t.image.length() - 1));
+    //flush();
+  }
+}
+
+void p_jj_plaintext() throws Exception: {Token t;} {
+  t = <PLAIN_TEXT> {
+    //System.out.println("<PLAIN_TEXT>: " + t.image);     
+    mbase.plaintext(t.image);
+    //flush();
+  }
+}
+
+void p_jj_eol() throws Exception: {Token t;} {
+  t = <EOL> { 
+    mbase.write(t.image);
+    //flush();
+  }
+}
+
+void p_jj_one_or_two_eol() throws Exception: {} {
+  p_jj_paragraph()
+  | 
+  p_jj_eol()
+}
+
+void p_jj_paragraph() throws Exception: {} {
+  <PARAGRAPH> { 
+    mbase.writeln(); 
+    mbase.writeln("<p />"); 
+    mbase.registerParagraphReceived();
+    //flush();
+  }
+}
+
+
+void p_jj_br() throws Exception: {} {
+  <BR> { 
+    mbase.write("<br />");
+    //flush();
+  }
+}
+
+
+void p_jj_horizontalrule() throws Exception: {} {
+  <HR> { 
+    mbase.writeln("<hr />");
+    //flush();
+  }
+
+}
+
+void p_jj_emoticon() throws Exception: {Token t;} {
+  t = <EMOTICON_TEXT> {
+    mbase.do_emoticon(t.image.trim());
+  }
+}
+
+void p_jj_escaped_word() throws Exception: {Token t;} {
+  t = <ESCAPED_TOKEN> {
+    //System.out.println("Escaped token: " + t.image);
+    mbase.escapedWord(t.image.substring(1));
+    //word(t.image);
+    //flush();
+  } 
+}
+
+void p_jj_slash_separated_word() throws Exception: {Token t;} {
+  t = <SLASH_SEPARATED_JOINED_WORD_TEXT> {
+    //System.out.println("SLASH_SEPARATED_JOINED_WORD_TEXT: " + t.image);
+    if(mbase.getImagePattern().matcher(t.image).matches())
+      mbase.url(t.image);
+    else
+      mbase.word(t.image, true, true);
+    //flush();
+  } 
+}
+
+void p_jj_separated_word() throws Exception: {Token t;} {
+  t = <SEPARATED_JOINED_WORD_TEXT> {
+    mbase.word(t.image, false, true);
+    //flush();
+  } 
+}
+
+void p_jj_htmlescapeable() throws Exception: {} {
+  <GT> { 
+    mbase.gt();
+    //flush();
+  }
+  | 
+  <LT> { 
+    mbase.lt();
+    //flush();
+  }
+}
+
+void p_jj_url() throws Exception: {Token t;} {
+  t = <URL_TEXT> {
+    mbase.url(t.image);
+    //flush();
+  }
+}
+
+void p_jj_emailaddress() throws Exception: {Token t;} {
+  t = <EMAIL_ADDRESS_TEXT> {
+    mbase.emailaddress(t.image);
+    //flush();
+  } 
+}
+
+void p_jj_link() throws Exception: {Token t; String s; } {
+  t = <LINK> {
+    s = t.image;
+    mbase.link(new MarkupLink(s.substring(1, s.length() - 1), true), true);
+    //flush();
+  }
+}
+
+void p_jj_list() throws Exception: {} {
+  (p_jj_listLine() )+
+  { 
+    mbase.deregisterListFully(); 
+    //flush();
+  }
+}
+
+
+void p_jj_listLine() throws Exception: {Token t; } {
+  ( t = <UL> {
+      mbase.list(t.image, mbase.UL_TYPE);
+      //flush();
+    }
+    |
+    t = <OL> {
+      mbase.list(t.image, mbase.OL_TYPE);
+      //flush();
+    }
+  )
+  ( p_jj_markupPageElement_text() | p_jj_markupPageElement_standalone() )*
+  (p_jj_eol())?
+}
+
+void p_jj_dl() throws Exception: {} {
+  {
+    mbase.writeln("<dl>");
+  }
+  ( p_jj_dlrow() )+
+  {
+    mbase.writeln("</dl>");
+  }
+}
+
+
+void p_jj_dlrow() throws Exception: {} {
+  <DL_START> {
+    mbase.write("<dt>");
+  }
+  ( p_jj_markupPageElement_text() | p_jj_markupPageElement_standalone() )*
+  {
+    mbase.writeln("</dt>");
+  }
+  <DD_START> {
+    mbase.write("<dd>");
+  }
+  ( p_jj_markupPageElement_text() | p_jj_markupPageElement_standalone() )*
+  {
+    mbase.writeln("</dd>");
+  }
+  (p_jj_eol())?
+  {
+    //flush();
+  }
+}
+
+
+void p_jj_table() throws Exception: {} {
+  { 
+    mbase.writeln("<table border=\"1\">");
+  }
+  ( p_jj_tablerow() )+
+  { 
+    mbase.writeln("</table>");
+  }
+}
+
+
+void p_jj_tablerow() throws Exception: {} {
+  {
+    mbase.writeln("<tr>");
+  }
+  ( p_jj_tablecell() )+
+  (p_jj_eol())?
+  {
+    mbase.writeln("</tr>");
+  }
+}
+
+
+void p_jj_tablecell() throws Exception: {Token t; int numcols; char h_or_d; } {  
+   ( t = <TABLE_ROW_START> | t = <TABLE_CELL> ) {
+      h_or_d = 'd';
+      numcols = mbase.getTableColspan(t.image);
+      if(mbase.isTableHeader(t.image))
+        h_or_d = 'h';
+      mbase.write("<t" + h_or_d + " colspan=\"" + numcols + "\">");
+    }
+  ( p_jj_markupPageElement_text() | p_jj_markupPageElement_standalone() )*
+  { 
+    mbase.writeln("</t" + h_or_d + ">");
+    //flush();
+  }
+}
+
+
+void p_jj_header() throws Exception: {Token t; } {
+  t = <HEADER_START> {
+    mbase.headerstart(t.image.trim().length());
+  }
+  ( p_jj_markupPageElement_text() | p_jj_markupPageElement_standalone() )*
+  { 
+    mbase.headerend();
+  }
+}
+
+
+void p_jj_asis() throws Exception: {Token t; String s; } {
+  t = <AS_IS_2> {
+    s = t.image;
+    mbase.asis(s.substring(2, s.length() - 2));
+    //flush();
+  }
+  |
+  t = <AS_IS_3> {
+    s = t.image;
+    mbase.asis(s.substring(2, s.length() - 2));
+    //flush();
+  }
+}
+
+void p_jj_pre() throws Exception: {Token t; String s; } {
+  t = <PRE> { 
+    s = t.image;
+    s = s.substring(3, s.length() - 3);
+    mbase.preformatted(s);
+    //flush();
+  }
+}
+
+void p_jj_comment() throws Exception: {Token t; String s; } {
+  t = <COMMENT> { 
+    mbase.comment(t.image);
+    //flush();
+  }
+
+}
+
+void p_jj_macro() throws Exception: {Token t;} {
+  t = <MACRO_NOCONTENT> { 
+    mbase.macro(t.image, false);
+    //flush();
+  }
+  |
+  t = <MACRO_WITHCONTENT_OPEN> { 
+    //System.out.println("MACRO_WITHCONTENT_OPEN: " + t.image);
+    p_jj_handleNonClosedMacro();
+  }
+}
+
+JAVACODE
+void p_jj_handleNonClosedMacro() throws Exception {
+  StringBuffer buf = new StringBuffer();
+  Token macroToken = getToken(0);
+  Token tok = macroToken;
+  buf.append(tok.image);
+  int idx = tok.image.indexOf(":");
+  if(idx == -1) {
+    idx = (tok.image.length() - 1);
+  }
+  //System.out.println("  p_jj_handleNonClosedMacro initial token: kind: " + tok.kind + " image: " + tok.image);
+  String name = tok.image.substring(1, idx);
+  String name2 = null;
+  while(true) {
+    tok = getNextToken();
+    if(tok.kind == EOF) {
+      //throw generateParseException();
+      throw new ParseException("EOF reached before closing token found for macro (at line:column " + 
+                                macroToken.beginLine + ":" + macroToken.beginColumn + ") : " + macroToken.image);
+    } 
+    buf.append(tok.image);
+    //System.out.println("  p_jj_handleNonClosedMacro current token: kind: " + tok.kind + " image: " + tok.image);
+    if(tok.kind == MACRO_WITHCONTENT_CLOSE) {    
+      //System.out.println("  MACRO_WITHCONTENT_CLOSE: token image: " + tok.image);
+      name2 = tok.image.substring(2, tok.image.length() - 1);
+      if(name.equals(name2)) {
+        break;
+      }
+    } 
+  }
+  String scon = buf.toString();
+  token_source.SwitchTo(DEFAULT);
+  mbase.macro(scon, true);
+  mbase.flush();
+}
+
